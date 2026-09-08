@@ -1,4 +1,4 @@
-//go:build linux && amd64 && !rk3588
+//go:build linux && amd64 && !rk3588 && !cuda
 
 package goface
 
