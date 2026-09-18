@@ -34,6 +34,12 @@ typedef enum {
     GOFACE_ROTATION_270 = 3,
 } goface_rotation_t;
 
+/* Session detection mode (maps to HFDetectMode) */
+typedef enum {
+    GOFACE_DETECT_MODE_ALWAYS_DETECT = 0,  /* Image mode: full detect every call */
+    GOFACE_DETECT_MODE_LIGHT_TRACK   = 1,  /* Video mode: track every call, full detect periodically */
+} goface_detect_mode_t;
+
 /* Image processing backend */
 typedef enum {
     GOFACE_BACKEND_AUTO = 0,  /* Probe hardware accel first, fallback to CPU */
@@ -57,6 +63,9 @@ typedef struct {
     int enable_quality;       /* Face quality assessment (0/1) */
     int enable_liveness;      /* RGB liveness detection (0/1) */
     int enable_mask_detect;   /* Mask detection (0/1) */
+    int skip_aligned_image;  /* Skip per-face aligned image fetch (0/1, default 0 = fetch, legacy behavior) */
+    int detect_mode;          /* goface_detect_mode_t, default ALWAYS_DETECT */
+    int track_detect_interval; /* LIGHT_TRACK: full-detect every N calls; 0 = SDK default (20) */
 } goface_session_opt_t;
 
 /* Opaque handle to detection results */
@@ -126,6 +135,8 @@ int goface_result_face_count(const goface_result_t* result);
  * @param x,y,w,h            OUT: bounding box.
  * @param roll,yaw,pitch     OUT: head pose angles.
  * @param confidence         OUT: detection confidence.
+ * @param track_id           OUT: track id (LightTrack mode; -1 if unavailable).
+ * @param track_count        OUT: tracked frame count (LightTrack mode; 0 if unavailable).
  * @param feature            OUT: pointer to float array (feature_size elements).
  * @param feature_size       OUT: dimension of feature vector.
  * @param face_image         OUT: pointer to RGB/BGR byte array.
@@ -138,10 +149,17 @@ int goface_result_get_face(const goface_result_t* result, int index,
                            int* x, int* y, int* w, int* h,
                            float* roll, float* yaw, float* pitch,
                            float* confidence,
+                           int* track_id, int* track_count,
                            const float** feature, int* feature_size,
                            const uint8_t** face_image,
                            int* face_img_w, int* face_img_h,
                            int* face_img_channels);
+
+/**
+ * Set the full-detect interval (in ExecuteFaceTrack calls) for a LIGHT_TRACK session.
+ * Returns 0 on success.
+ */
+int goface_session_set_track_detect_interval(goface_session_t* session, int num);
 
 /**
  * Free a result object and all internally held buffers.

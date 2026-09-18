@@ -23,6 +23,8 @@ typedef struct {
     int    x, y, w, h;
     float  roll, yaw, pitch;
     float  confidence;
+    int    track_id;       /* LightTrack mode; -1 if unavailable */
+    int    track_count;    /* LightTrack mode; 0 if unavailable */
 
     float* feature;        /* owned, NULL if recognition disabled */
     int    feature_size;
@@ -41,6 +43,8 @@ struct goface_result {
 struct goface_session {
     HFSession handle;
     int       enable_recognition;
+    int       enable_aligned_image;
+    int       detect_mode;
 };
 
 static int g_initialized = 0;
@@ -142,9 +146,12 @@ goface_session_t* goface_session_create(const goface_session_opt_t* opt) {
     if (opt->enable_mask_detect) option |= HF_ENABLE_MASK_DETECT;
 
     HFSession session_handle = {0};
+    int detect_mode = opt->detect_mode == GOFACE_DETECT_MODE_LIGHT_TRACK
+                          ? HF_DETECT_MODE_LIGHT_TRACK
+                          : HF_DETECT_MODE_ALWAYS_DETECT;
     HResult ret = HFCreateInspireFaceSessionOptional(
         option,
-        HF_DETECT_MODE_ALWAYS_DETECT,
+        detect_mode,
         opt->max_faces > 0 ? opt->max_faces : 10,
         opt->detect_pixel_level,
         -1,
@@ -155,6 +162,15 @@ goface_session_t* goface_session_create(const goface_session_opt_t* opt) {
         return NULL;
     }
 
+    if (detect_mode == HF_DETECT_MODE_LIGHT_TRACK && opt->track_detect_interval > 0) {
+        ret = HFSessionSetTrackModeDetectInterval(session_handle, opt->track_detect_interval);
+        if (ret != HSUCCEED) {
+            fprintf(stderr, "[goface] HFSessionSetTrackModeDetectInterval failed: %lu\n", (unsigned long)ret);
+            HFReleaseInspireFaceSession(session_handle);
+            return NULL;
+        }
+    }
+
     goface_session_t* s = (goface_session_t*)calloc(1, sizeof(goface_session_t));
     if (!s) {
         HFReleaseInspireFaceSession(session_handle);
@@ -163,6 +179,8 @@ goface_session_t* goface_session_create(const goface_session_opt_t* opt) {
 
     s->handle = session_handle;
     s->enable_recognition = opt->enable_recognition;
+    s->enable_aligned_image = !opt->skip_aligned_image;
+    s->detect_mode = opt->detect_mode;
     return s;
 }
 
@@ -262,6 +280,12 @@ int goface_session_detect(goface_session_t* session,
         /* Confidence */
         if (multi_face.detConfidence) f->confidence = multi_face.detConfidence[i];
 
+        /* Tracking (LightTrack mode) */
+        f->track_id = -1;
+        f->track_count = 0;
+        if (multi_face.trackIds) f->track_id = multi_face.trackIds[i];
+        if (multi_face.trackCounts) f->track_count = multi_face.trackCounts[i];
+
         HFFaceBasicToken token = multi_face.tokens[i];
 
         /* Feature extraction */
@@ -278,23 +302,25 @@ int goface_session_detect(goface_session_t* session,
         }
 
         /* Aligned face image */
-        HFImageBitmap aligned_bitmap = {0};
-        ret = HFFaceGetFaceAlignmentImage(session->handle, stream, token, &aligned_bitmap);
-        if (ret == HSUCCEED && aligned_bitmap) {
-            HFImageBitmapData bitmap_data = {0};
-            ret = HFImageBitmapGetData(aligned_bitmap, &bitmap_data);
-            if (ret == HSUCCEED && bitmap_data.data && bitmap_data.width > 0 && bitmap_data.height > 0) {
-                int channels = bitmap_data.channels > 0 ? bitmap_data.channels : 3;
-                size_t img_bytes = (size_t)bitmap_data.width * bitmap_data.height * channels;
-                f->face_image = (uint8_t*)malloc(img_bytes);
-                if (f->face_image) {
-                    memcpy(f->face_image, bitmap_data.data, img_bytes);
-                    f->face_img_w = bitmap_data.width;
-                    f->face_img_h = bitmap_data.height;
-                    f->face_img_channels = channels;
+        if (session->enable_aligned_image) {
+            HFImageBitmap aligned_bitmap = {0};
+            ret = HFFaceGetFaceAlignmentImage(session->handle, stream, token, &aligned_bitmap);
+            if (ret == HSUCCEED && aligned_bitmap) {
+                HFImageBitmapData bitmap_data = {0};
+                ret = HFImageBitmapGetData(aligned_bitmap, &bitmap_data);
+                if (ret == HSUCCEED && bitmap_data.data && bitmap_data.width > 0 && bitmap_data.height > 0) {
+                    int channels = bitmap_data.channels > 0 ? bitmap_data.channels : 3;
+                    size_t img_bytes = (size_t)bitmap_data.width * bitmap_data.height * channels;
+                    f->face_image = (uint8_t*)malloc(img_bytes);
+                    if (f->face_image) {
+                        memcpy(f->face_image, bitmap_data.data, img_bytes);
+                        f->face_img_w = bitmap_data.width;
+                        f->face_img_h = bitmap_data.height;
+                        f->face_img_channels = channels;
+                    }
                 }
+                HFReleaseImageBitmap(aligned_bitmap);
             }
-            HFReleaseImageBitmap(aligned_bitmap);
         }
     }
 
@@ -315,6 +341,7 @@ int goface_result_get_face(const goface_result_t* result, int index,
                            int* x, int* y, int* w, int* h,
                            float* roll, float* yaw, float* pitch,
                            float* confidence,
+                           int* track_id, int* track_count,
                            const float** feature, int* feature_size,
                            const uint8_t** face_image,
                            int* face_img_w, int* face_img_h,
@@ -334,6 +361,9 @@ int goface_result_get_face(const goface_result_t* result, int index,
 
     if (confidence) *confidence = f->confidence;
 
+    if (track_id) *track_id = f->track_id;
+    if (track_count) *track_count = f->track_count;
+
     if (feature)      *feature = f->feature;
     if (feature_size) *feature_size = f->feature_size;
 
@@ -343,6 +373,12 @@ int goface_result_get_face(const goface_result_t* result, int index,
     if (face_img_channels) *face_img_channels = f->face_img_channels;
 
     return 0;
+}
+
+int goface_session_set_track_detect_interval(goface_session_t* session, int num) {
+    if (!session || !session->handle || num <= 0) return HERR_INVALID_PARAM;
+    HResult ret = HFSessionSetTrackModeDetectInterval(session->handle, num);
+    return ret == HSUCCEED ? 0 : (int)ret;
 }
 
 void goface_result_free(goface_result_t* result) {

@@ -79,21 +79,42 @@ type Session struct {
 
 // NewSession creates a session. Call Init() before using this.
 func NewSession(opt SessionOption) (*Session, error) {
-	cOpt := C.goface_session_opt_t{
-		max_faces:          C.int(opt.MaxFaces),
-		detect_pixel_level: C.int(opt.DetectPixelLevel),
-		enable_recognition: C.int(opt.EnableRecognition),
-		enable_face_pose:   C.int(opt.EnableFacePose),
-		enable_quality:     C.int(opt.EnableQuality),
-		enable_liveness:    C.int(opt.EnableLiveness),
-		enable_mask_detect: C.int(opt.EnableMaskDetect),
-	}
+	cOpt := gofaceSessionOpt(opt)
 
 	ptr := C.goface_session_create(&cOpt)
 	if ptr == nil {
 		return nil, fmt.Errorf("goface_session_create failed")
 	}
 	return &Session{handle: unsafe.Pointer(ptr)}, nil
+}
+
+// gofaceSessionOpt maps SessionOption to its C counterpart (shared by NewSession and LowLevelSessionCreate).
+func gofaceSessionOpt(opt SessionOption) C.goface_session_opt_t {
+	return C.goface_session_opt_t{
+		max_faces:             C.int(opt.MaxFaces),
+		detect_pixel_level:    C.int(opt.DetectPixelLevel),
+		enable_recognition:    C.int(opt.EnableRecognition),
+		enable_face_pose:      C.int(opt.EnableFacePose),
+		enable_quality:        C.int(opt.EnableQuality),
+		enable_liveness:       C.int(opt.EnableLiveness),
+		enable_mask_detect:    C.int(opt.EnableMaskDetect),
+		skip_aligned_image:    C.int(opt.SkipAlignedImage),
+		detect_mode:           C.int(opt.DetectMode),
+		track_detect_interval: C.int(opt.TrackDetectInterval),
+	}
+}
+
+// SetTrackDetectInterval sets the full-detect interval (in ExecuteFaceTrack calls) for a
+// LIGHT_TRACK session. It overrides the value given at session creation.
+func (s *Session) SetTrackDetectInterval(num int) error {
+	if s == nil || s.handle == nil {
+		return fmt.Errorf("session is closed")
+	}
+	ret := C.goface_session_set_track_detect_interval((*C.goface_session_t)(s.handle), C.int(num))
+	if ret != 0 {
+		return fmt.Errorf("set track detect interval failed: %s", StrError(int(ret)))
+	}
+	return nil
 }
 
 // Close destroys the session and releases associated memory.
@@ -143,6 +164,7 @@ func (s *Session) DetectWithRotation(data []byte, width, height int, format Imag
 	for i := 0; i < count; i++ {
 		var x, y, w, h C.int
 		var roll, yaw, pitch, confidence C.float
+		var trackID, trackCount C.int
 		var feature *C.float
 		var featureSize C.int
 		var faceImg *C.uint8_t
@@ -153,6 +175,7 @@ func (s *Session) DetectWithRotation(data []byte, width, height int, format Imag
 			&x, &y, &w, &h,
 			&roll, &yaw, &pitch,
 			&confidence,
+			&trackID, &trackCount,
 			&feature, &featureSize,
 			&faceImg, &fiw, &fih, &fic,
 		)
@@ -166,6 +189,8 @@ func (s *Session) DetectWithRotation(data []byte, width, height int, format Imag
 			Yaw:  float32(yaw),
 			Pitch: float32(pitch),
 			Confidence: float32(confidence),
+			TrackID:    int32(trackID),
+			TrackCount: int32(trackCount),
 		}
 
 		if feature != nil && featureSize > 0 {
@@ -271,6 +296,7 @@ func LowLevelResultGetFace(resultPtr unsafe.Pointer, index int, face *Face) erro
 
 	var x, y, w, h C.int
 	var roll, yaw, pitch, confidence C.float
+	var trackID, trackCount C.int
 	var feature *C.float
 	var featureSize C.int
 	var faceImg *C.uint8_t
@@ -281,6 +307,7 @@ func LowLevelResultGetFace(resultPtr unsafe.Pointer, index int, face *Face) erro
 		&x, &y, &w, &h,
 		&roll, &yaw, &pitch,
 		&confidence,
+		&trackID, &trackCount,
 		&feature, &featureSize,
 		&faceImg, &fiw, &fih, &fic,
 	)
@@ -294,6 +321,8 @@ func LowLevelResultGetFace(resultPtr unsafe.Pointer, index int, face *Face) erro
 		Yaw:        float32(yaw),
 		Pitch:      float32(pitch),
 		Confidence: float32(confidence),
+		TrackID:    int32(trackID),
+		TrackCount: int32(trackCount),
 	}
 
 	if feature != nil && featureSize > 0 {
@@ -326,15 +355,7 @@ func LowLevelResultFree(resultPtr unsafe.Pointer) {
 
 // LowLevelSessionCreate creates a raw C session. Use LowLevelSessionDestroy to free it.
 func LowLevelSessionCreate(opt SessionOption) (unsafe.Pointer, error) {
-	cOpt := C.goface_session_opt_t{
-		max_faces:          C.int(opt.MaxFaces),
-		detect_pixel_level: C.int(opt.DetectPixelLevel),
-		enable_recognition: C.int(opt.EnableRecognition),
-		enable_face_pose:   C.int(opt.EnableFacePose),
-		enable_quality:     C.int(opt.EnableQuality),
-		enable_liveness:    C.int(opt.EnableLiveness),
-		enable_mask_detect: C.int(opt.EnableMaskDetect),
-	}
+	cOpt := gofaceSessionOpt(opt)
 	ptr := C.goface_session_create(&cOpt)
 	if ptr == nil {
 		return nil, fmt.Errorf("goface_session_create failed")
