@@ -6,14 +6,14 @@ import "image"
 type ImageFormat int
 
 const (
-	FormatRGB   ImageFormat = 0
-	FormatBGR   ImageFormat = 1
-	FormatRGBA  ImageFormat = 2
-	FormatBGRA  ImageFormat = 3
-	FormatNV12  ImageFormat = 4
-	FormatNV21  ImageFormat = 5
-	FormatI420  ImageFormat = 6
-	FormatGRAY  ImageFormat = 7
+	FormatRGB  ImageFormat = 0
+	FormatBGR  ImageFormat = 1
+	FormatRGBA ImageFormat = 2
+	FormatBGRA ImageFormat = 3
+	FormatNV12 ImageFormat = 4
+	FormatNV21 ImageFormat = 5
+	FormatI420 ImageFormat = 6
+	FormatGRAY ImageFormat = 7
 )
 
 // Rotation represents the camera rotation of the image.
@@ -61,8 +61,8 @@ type Face struct {
 	Yaw        float32
 	Pitch      float32
 	Confidence float32
-	TrackID    int32 // stable track id per continuous face (LightTrack mode; -1 if unavailable)
-	TrackCount int32 // number of frames this track has been followed (0 if unavailable)
+	TrackID    int32      // stable track id per continuous face (LightTrack mode; -1 if unavailable)
+	TrackCount int32      // number of frames this track has been followed (0 if unavailable)
 	Feature    []float32  // embedding vector; nil if recognition disabled
 	FaceImage  *FaceImage // aligned face image; nil if unavailable
 }
@@ -76,16 +76,16 @@ type InitOption struct {
 
 // SessionOption configures a face algorithm session.
 type SessionOption struct {
-	MaxFaces            int // Maximum number of faces to detect (default 10)
-	DetectPixelLevel    int // Detector input resolution: 160, 320, 640; -1 = default 320
-	EnableRecognition   int // Extract face embedding (0 or 1)
-	EnableFacePose      int // Estimate head pose angles (0 or 1)
-	EnableQuality       int // Face quality assessment (0 or 1)
-	EnableLiveness      int // RGB liveness detection (0 or 1)
-	EnableMaskDetect    int // Mask detection (0 or 1)
-	SkipAlignedImage    int // Skip per-face aligned image fetch (0 or 1, default 0 = fetch); set 1 for pure tracking sessions to save per-face cost
+	MaxFaces            int        // Maximum number of faces to detect (default 10)
+	DetectPixelLevel    int        // Detector input resolution: 160, 320, 640; -1 = default 320
+	EnableRecognition   int        // Extract face embedding (0 or 1)
+	EnableFacePose      int        // Estimate head pose angles (0 or 1)
+	EnableQuality       int        // Face quality assessment (0 or 1)
+	EnableLiveness      int        // RGB liveness detection (0 or 1)
+	EnableMaskDetect    int        // Mask detection (0 or 1)
+	SkipAlignedImage    int        // Skip per-face aligned image fetch (0 or 1, default 0 = fetch); set 1 for pure tracking sessions to save per-face cost
 	DetectMode          DetectMode // ALWAYS_DETECT (default) or LIGHT_TRACK
-	TrackDetectInterval int // LIGHT_TRACK only: run full detect every N ExecuteFaceTrack calls; 0 = SDK default (20)
+	TrackDetectInterval int        // LIGHT_TRACK only: run full detect every N ExecuteFaceTrack calls; 0 = SDK default (20)
 }
 
 // DefaultSessionOption returns a SessionOption with sensible defaults.
