@@ -36,8 +36,9 @@ typedef enum {
 
 /* Session detection mode (maps to HFDetectMode) */
 typedef enum {
-    GOFACE_DETECT_MODE_ALWAYS_DETECT = 0,  /* Image mode: full detect every call */
-    GOFACE_DETECT_MODE_LIGHT_TRACK   = 1,  /* Video mode: track every call, full detect periodically */
+    GOFACE_DETECT_MODE_ALWAYS_DETECT      = 0,  /* Image mode: full detect every call */
+    GOFACE_DETECT_MODE_LIGHT_TRACK        = 1,  /* Video mode: track every call, full detect periodically */
+    GOFACE_DETECT_MODE_TRACK_BY_DETECTION = 2,  /* Video mode: detection-based tracking (high-res / monitoring) */
 } goface_detect_mode_t;
 
 /* Image processing backend */

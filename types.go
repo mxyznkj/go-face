@@ -42,8 +42,11 @@ const (
 	// DetectModeAlwaysDetect: image mode, full detect every call (default, legacy behavior).
 	DetectModeAlwaysDetect DetectMode = 0
 	// DetectModeLightTrack: video mode, light tracking every call with a periodic full detect.
-	// TrackID/TrackCount are only meaningful in this mode.
+	// TrackID/TrackCount are only meaningful in tracking modes.
 	DetectModeLightTrack DetectMode = 1
+	// DetectModeTrackByDetection: video mode, detection-based tracking for
+	// high-resolution / monitoring scenes. TrackID/TrackCount are meaningful.
+	DetectModeTrackByDetection DetectMode = 2
 )
 
 // FaceImage holds the aligned face image returned by the SDK.
@@ -61,7 +64,7 @@ type Face struct {
 	Yaw        float32
 	Pitch      float32
 	Confidence float32
-	TrackID    int32      // stable track id per continuous face (LightTrack mode; -1 if unavailable)
+	TrackID    int32      // stable track id per continuous face (tracking modes; -1 if unavailable)
 	TrackCount int32      // number of frames this track has been followed (0 if unavailable)
 	Feature    []float32  // embedding vector; nil if recognition disabled
 	FaceImage  *FaceImage // aligned face image; nil if unavailable
@@ -84,7 +87,7 @@ type SessionOption struct {
 	EnableLiveness      int        // RGB liveness detection (0 or 1)
 	EnableMaskDetect    int        // Mask detection (0 or 1)
 	SkipAlignedImage    int        // Skip per-face aligned image fetch (0 or 1, default 0 = fetch); set 1 for pure tracking sessions to save per-face cost
-	DetectMode          DetectMode // ALWAYS_DETECT (default) or LIGHT_TRACK
+	DetectMode          DetectMode // ALWAYS_DETECT (default) / LIGHT_TRACK / TRACK_BY_DETECTION
 	TrackDetectInterval int        // LIGHT_TRACK only: run full detect every N ExecuteFaceTrack calls; 0 = SDK default (20)
 }
 

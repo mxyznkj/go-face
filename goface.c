@@ -146,9 +146,18 @@ goface_session_t* goface_session_create(const goface_session_opt_t* opt) {
     if (opt->enable_mask_detect) option |= HF_ENABLE_MASK_DETECT;
 
     HFSession session_handle = {0};
-    int detect_mode = opt->detect_mode == GOFACE_DETECT_MODE_LIGHT_TRACK
-                          ? HF_DETECT_MODE_LIGHT_TRACK
-                          : HF_DETECT_MODE_ALWAYS_DETECT;
+    int detect_mode;
+    switch (opt->detect_mode) {
+        case GOFACE_DETECT_MODE_LIGHT_TRACK:
+            detect_mode = HF_DETECT_MODE_LIGHT_TRACK;
+            break;
+        case GOFACE_DETECT_MODE_TRACK_BY_DETECTION:
+            detect_mode = HF_DETECT_MODE_TRACK_BY_DETECTION;
+            break;
+        default:
+            detect_mode = HF_DETECT_MODE_ALWAYS_DETECT;
+            break;
+    }
     HResult ret = HFCreateInspireFaceSessionOptional(
         option,
         detect_mode,
